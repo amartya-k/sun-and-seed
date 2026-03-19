@@ -5,18 +5,28 @@ const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const postcardRef = useRef(null);
+  
+  // This will hold the "ready-to-use" version of your photo
   const [imgData, setImgData] = useState(null);
 
   const herName = "Sayantika"; 
 
+  // 1. PRE-LOAD: This fixes the "delay" at the end and the "blank" download
   useEffect(() => {
-    fetch("/us.png")
-      .then(response => response.blob())
-      .then(blob => {
+    const loadImage = async () => {
+      try {
+        const response = await fetch("/us.png");
+        const blob = await response.blob();
         const reader = new FileReader();
-        reader.onloadend = () => setImgData(reader.result);
+        reader.onloadend = () => {
+          setImgData(reader.result); // Image is now stored as a local string
+        };
         reader.readAsDataURL(blob);
-      });
+      } catch (e) {
+        console.error("Image failed to pre-load", e);
+      }
+    };
+    loadImage();
   }, []);
 
   const memories = [
@@ -29,14 +39,18 @@ const App = () => {
   const handleStart = () => setGameStarted(true);
   const handleRestart = () => setStage(0);
 
+  // 2. DOWNLOAD: Optimized for mobile/Safari
   const downloadPostcard = async () => {
     if (postcardRef.current === null || !imgData) return;
+    
     try {
+      // Small "wait" to ensure Safari has painted the pixels
       const dataUrl = await toPng(postcardRef.current, {
         pixelRatio: 3,
         backgroundColor: '#f9f9f2',
-        cacheBust: true,
+        cacheBust: false, // Don't bust cache since we are using imgData string
       });
+
       const link = document.createElement('a');
       link.download = `Postcard_for_${herName}.png`;
       link.href = dataUrl;
@@ -66,15 +80,8 @@ const App = () => {
         @keyframes drift { 0% { top:-10%; transform:rotate(0); opacity: 0; } 15% { opacity: 0.7; } 100% { top:110%; transform:rotate(360deg) translateX(40px); opacity: 0; } }
         @keyframes pop { 0% { transform: scale(0); opacity:0; } 100% { transform: scale(1); opacity:1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        @keyframes heartbeat {
-          0% { transform: scale(1); }
-          14% { transform: scale(1.3); }
-          28% { transform: scale(1); }
-          42% { transform: scale(1.3); }
-          70% { transform: scale(1); }
-        }
         .p { position:absolute; width:10px; height:10px; background:#ffccd5; border-radius:12px 2px; animation: drift 10s linear infinite; pointer-events:none; }
-        .heart-glow { display: inline-block; color: #ff4d6d; animation: heartbeat 1.5s infinite ease-in-out; filter: drop-shadow(0 0 8px rgba(255, 77, 109, 0.6)); margin-left: 10px; font-style: normal; }
+        .heart-glow { display: inline-block; color: #ff4d6d; filter: drop-shadow(0 0 8px rgba(255, 77, 109, 0.6)); margin-left: 8px; font-style: normal; }
         .reunion-text { background: linear-gradient(to bottom, #1b4332, #2d6a4f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Playfair Display', serif; font-weight: 700; font-style: italic; line-height: 1.2; }
       `}</style>
       
@@ -114,7 +121,12 @@ const App = () => {
           <div style={s.finalMemoryCard}>
              <div ref={postcardRef} style={s.postcardBox}>
                 <div style={s.posterContainer}>
-                    <div style={{...s.ghibliPhoto, backgroundImage: `url(${imgData})` }} />
+                    {/* The image is now fed from the pre-loaded state for instant display */}
+                    {imgData ? (
+                      <div style={{...s.ghibliPhoto, backgroundImage: `url(${imgData})` }} />
+                    ) : (
+                      <div style={s.loadingPlaceholder}>Blooming...</div>
+                    )}
                 </div>
                 <h2 style={s.reunion}>
                     <span className="reunion-text">Home is with you, {herName}</span>
@@ -124,7 +136,7 @@ const App = () => {
 
              <div style={s.btnGroup}>
                 <button onClick={downloadPostcard} style={s.downloadBtn}>Save Postcard 💌</button>
-                <button onClick={handleRestart} style={s.restartBtn}>Visit Meadow</button>
+                <button onClick={handleRestart} style={s.restartBtn}>Restart</button>
              </div>
           </div>
         )}
@@ -142,15 +154,13 @@ const Petals = () => (
 );
 
 const s = {
-  // FIXED: Changed height/position to allow scrolling on mobile
   ghibliBg: { minHeight: '100vh', width: '100vw', background: 'linear-gradient(to bottom, #dcebe3 0%, #f9f7e8 50%, #eef2d8 100%)', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden' },
   texture: { position: 'absolute', inset: 0, backgroundImage: 'url("https://www.transparenttextures.com/patterns/paper-fibers.png")', opacity: 0.4, pointerEvents: 'none', zIndex: 1 },
   headerSection: { minHeight: '15vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10 },
-  meadowSection: { minHeight: '25vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px', position: 'relative' },
-  // FIXED: Added paddingBottom to prevent clipping of buttons
-  footerSection: { minHeight: '50vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10, padding: '0 10px 60px 10px' },
+  meadowSection: { minHeight: '20vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px', position: 'relative' },
+  footerSection: { minHeight: '60vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10, padding: '0 10px 80px 10px' },
   storyCard: { padding: '12px 20px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: '25px', backdropFilter: 'blur(5px)', textAlign: 'center', width: '85%' },
-  storyText: { fontSize: '1rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: '700', margin: 0, lineHeight: '1.4' },
+  storyText: { fontSize: '0.95rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: '700', margin: 0, lineHeight: '1.4' },
   flowerWrapper: { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.8s ease-out' },
   seed: { width: '20px', height: '14px', background: '#5d4037', borderRadius: '50%' },
   stem: { width: '6px', background: '#386641', borderRadius: '4px' },
@@ -160,18 +170,19 @@ const s = {
   petal: { position: 'absolute', width: '35px', height: '55px', background: 'radial-gradient(circle, #fff, #ffb7ce)', borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' },
   flowerCenter: { position: 'absolute', width: '15px', height: '15px', background: '#fee440', borderRadius: '50%', border: '2px solid #fff' },
   sunDraggable: { textAlign: 'center', cursor: 'pointer', zIndex: 30, WebkitTapHighlightColor: 'transparent', animation: 'pulse 2s infinite ease-in-out' },
-  sun: { fontSize: '3rem', filter: 'drop-shadow(0 0 10px #f9dc5c)' },
-  sunHint: { fontSize: '0.6rem', color: '#386641', fontWeight: '800', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '1px' },
-  finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '350px', width: '90%' },
-  postcardBox: { background: '#f9f9f2', padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  posterContainer: { width: '160px', height: '240px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff' },
+  sun: { fontSize: '2.8rem', filter: 'drop-shadow(0 0 10px #f9dc5c)' },
+  sunHint: { fontSize: '0.55rem', color: '#386641', fontWeight: '800', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '1px' },
+  finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '340px', width: '95%' },
+  postcardBox: { background: '#f9f9f2', padding: '15px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  posterContainer: { width: '150px', height: '220px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   ghibliPhoto: { width: '100%', height: '100%', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
-  reunion: { fontSize: '1.2rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
-  btnGroup: { display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '15px' },
-  downloadBtn: { padding: '10px 20px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' },
-  restartBtn: { padding: '10px 20px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' },
+  loadingPlaceholder: { color: '#386641', fontSize: '0.8rem', fontStyle: 'italic' },
+  reunion: { fontSize: '1.1rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
+  btnGroup: { display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' },
+  downloadBtn: { padding: '12px 18px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(56, 102, 65, 0.3)' },
+  restartBtn: { padding: '12px 18px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' },
   content: { marginTop: '40vh', textAlign: 'center', zIndex: 10 },
-  title: { fontSize: '2.5rem', color: '#1b4332', fontFamily: "'Playfair Display', serif" },
+  title: { fontSize: '2.2rem', color: '#1b4332', fontFamily: "'Playfair Display', serif" },
   startBtn: { padding: '12px 45px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' },
   petalsWrap: { position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 5 }
 };
