@@ -1,14 +1,23 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { toPng } from 'html-to-image';
-
-const YOUR_IMAGE_LINK = "/us.png"; // Ensure file is in public/us.png
 
 const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const postcardRef = useRef(null);
+  const [imgData, setImgData] = useState(null);
 
   const herName = "Sayantika"; 
+
+  useEffect(() => {
+    fetch("/us.png")
+      .then(response => response.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => setImgData(reader.result);
+        reader.readAsDataURL(blob);
+      });
+  }, []);
 
   const memories = [
     "It started as a small seed, half a world away.",
@@ -21,25 +30,17 @@ const App = () => {
   const handleRestart = () => setStage(0);
 
   const downloadPostcard = async () => {
-    if (postcardRef.current === null) return;
-
+    if (postcardRef.current === null || !imgData) return;
     try {
-      // Pass 1: "Wake up" the browser's renderer
-      await toPng(postcardRef.current, { cacheBust: false });
-
-      // Pass 2: Actual capture with a slight delay to ensure pixels are painted
-      setTimeout(async () => {
-        const dataUrl = await toPng(postcardRef.current, {
-          pixelRatio: 3,
-          backgroundColor: '#f9f9f2',
-          cacheBust: false,
-        });
-
-        const link = document.createElement('a');
-        link.download = `Postcard_for_${herName}.png`;
-        link.href = dataUrl;
-        link.click();
-      }, 150);
+      const dataUrl = await toPng(postcardRef.current, {
+        pixelRatio: 3,
+        backgroundColor: '#f9f9f2',
+        cacheBust: true,
+      });
+      const link = document.createElement('a');
+      link.download = `Postcard_for_${herName}.png`;
+      link.href = dataUrl;
+      link.click();
     } catch (err) {
       console.error('Download failed', err);
     }
@@ -59,7 +60,7 @@ const App = () => {
   }
 
   return (
-    <div style={{...s.ghibliBg, touchAction: 'none'}}>
+    <div style={s.ghibliBg}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
         @keyframes drift { 0% { top:-10%; transform:rotate(0); opacity: 0; } 15% { opacity: 0.7; } 100% { top:110%; transform:rotate(360deg) translateX(40px); opacity: 0; } }
@@ -101,7 +102,7 @@ const App = () => {
         </div>
         
         {stage < 3 && (
-          <div style={{...s.sunDraggable, animation: 'pulse 2s infinite ease-in-out'}} onClick={() => setStage(stage + 1)}>
+          <div style={s.sunDraggable} onClick={() => setStage(stage + 1)}>
             <div style={s.sun}>☀️</div>
             <p style={s.sunHint}>Tap the sun to grow</p>
           </div>
@@ -113,8 +114,7 @@ const App = () => {
           <div style={s.finalMemoryCard}>
              <div ref={postcardRef} style={s.postcardBox}>
                 <div style={s.posterContainer}>
-                    {/* FIXED: Using div with backgroundImage for better capture compatibility */}
-                    <div style={{...s.ghibliPhoto, backgroundImage: `url(${YOUR_IMAGE_LINK})` }} />
+                    <div style={{...s.ghibliPhoto, backgroundImage: `url(${imgData})` }} />
                 </div>
                 <h2 style={s.reunion}>
                     <span className="reunion-text">Home is with you, {herName}</span>
@@ -142,11 +142,13 @@ const Petals = () => (
 );
 
 const s = {
-  ghibliBg: { height: '100vh', width: '100vw', background: 'linear-gradient(to bottom, #dcebe3 0%, #f9f7e8 50%, #eef2d8 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'fixed' },
+  // FIXED: Changed height/position to allow scrolling on mobile
+  ghibliBg: { minHeight: '100vh', width: '100vw', background: 'linear-gradient(to bottom, #dcebe3 0%, #f9f7e8 50%, #eef2d8 100%)', display: 'flex', flexDirection: 'column', position: 'relative', overflowX: 'hidden' },
   texture: { position: 'absolute', inset: 0, backgroundImage: 'url("https://www.transparenttextures.com/patterns/paper-fibers.png")', opacity: 0.4, pointerEvents: 'none', zIndex: 1 },
-  headerSection: { height: '15vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px', zIndex: 10 },
-  meadowSection: { height: '30vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px', position: 'relative' },
-  footerSection: { height: '55vh', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: '0 10px' },
+  headerSection: { minHeight: '15vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10 },
+  meadowSection: { minHeight: '25vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px', position: 'relative' },
+  // FIXED: Added paddingBottom to prevent clipping of buttons
+  footerSection: { minHeight: '50vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10, padding: '0 10px 60px 10px' },
   storyCard: { padding: '12px 20px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: '25px', backdropFilter: 'blur(5px)', textAlign: 'center', width: '85%' },
   storyText: { fontSize: '1rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: '700', margin: 0, lineHeight: '1.4' },
   flowerWrapper: { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.8s ease-out' },
@@ -157,21 +159,21 @@ const s = {
   bloomContainer: { position: 'absolute', top: '-25px', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pop 0.6s forwards' },
   petal: { position: 'absolute', width: '35px', height: '55px', background: 'radial-gradient(circle, #fff, #ffb7ce)', borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' },
   flowerCenter: { position: 'absolute', width: '15px', height: '15px', background: '#fee440', borderRadius: '50%', border: '2px solid #fff' },
-  sunDraggable: { position: 'absolute', top: '-20px', textAlign: 'center', cursor: 'pointer', zIndex: 30, WebkitTapHighlightColor: 'transparent' },
+  sunDraggable: { textAlign: 'center', cursor: 'pointer', zIndex: 30, WebkitTapHighlightColor: 'transparent', animation: 'pulse 2s infinite ease-in-out' },
   sun: { fontSize: '3rem', filter: 'drop-shadow(0 0 10px #f9dc5c)' },
   sunHint: { fontSize: '0.6rem', color: '#386641', fontWeight: '800', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '1px' },
   finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '350px', width: '90%' },
   postcardBox: { background: '#f9f9f2', padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   posterContainer: { width: '160px', height: '240px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff' },
   ghibliPhoto: { width: '100%', height: '100%', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
-  reunion: { fontSize: '1.3rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
+  reunion: { fontSize: '1.2rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
   btnGroup: { display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '15px' },
-  downloadBtn: { padding: '8px 16px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' },
-  restartBtn: { padding: '8px 16px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' },
-  content: { marginTop: '40vh', textAlign: 'center' },
+  downloadBtn: { padding: '10px 20px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' },
+  restartBtn: { padding: '10px 20px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' },
+  content: { marginTop: '40vh', textAlign: 'center', zIndex: 10 },
   title: { fontSize: '2.5rem', color: '#1b4332', fontFamily: "'Playfair Display', serif" },
   startBtn: { padding: '12px 45px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' },
-  petalsWrap: { position: 'absolute', inset: 0, pointerEvents: 'none' }
+  petalsWrap: { position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 5 }
 };
 
 export default App;
