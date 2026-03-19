@@ -6,7 +6,7 @@ const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
 
-  const herName = "Your Name"; 
+  const herName = "Sayantika"; 
 
   const memories = [
     "It started as a small seed, half a world away.",
