@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { toPng } from 'html-to-image';
 
-const YOUR_IMAGE_LINK = "https://i.postimg.cc/DyJs5yQJ/Gemini-Generated-Image-pme3zwpme3zwpme3.png";
+const YOUR_IMAGE_LINK = "/us.png"; // Ensure file is in public/us.png
 
 const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
+  const postcardRef = useRef(null);
 
   const herName = "Sayantika"; 
 
@@ -15,8 +17,32 @@ const App = () => {
     `And now, no matter the season, we bloom together, ${herName}.`
   ];
 
-  const handleStart = () => {
-    setGameStarted(true);
+  const handleStart = () => setGameStarted(true);
+  const handleRestart = () => setStage(0);
+
+  const downloadPostcard = async () => {
+    if (postcardRef.current === null) return;
+
+    try {
+      // Pass 1: "Wake up" the browser's renderer
+      await toPng(postcardRef.current, { cacheBust: false });
+
+      // Pass 2: Actual capture with a slight delay to ensure pixels are painted
+      setTimeout(async () => {
+        const dataUrl = await toPng(postcardRef.current, {
+          pixelRatio: 3,
+          backgroundColor: '#f9f9f2',
+          cacheBust: false,
+        });
+
+        const link = document.createElement('a');
+        link.download = `Postcard_for_${herName}.png`;
+        link.href = dataUrl;
+        link.click();
+      }, 150);
+    } catch (err) {
+      console.error('Download failed', err);
+    }
   };
 
   if (!gameStarted) {
@@ -33,19 +59,26 @@ const App = () => {
   }
 
   return (
-    <div style={s.ghibliBg}>
+    <div style={{...s.ghibliBg, touchAction: 'none'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
         @keyframes drift { 0% { top:-10%; transform:rotate(0); opacity: 0; } 15% { opacity: 0.7; } 100% { top:110%; transform:rotate(360deg) translateX(40px); opacity: 0; } }
         @keyframes pop { 0% { transform: scale(0); opacity:0; } 100% { transform: scale(1); opacity:1; } }
-        @keyframes beat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
-        @keyframes softFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        @keyframes heartbeat {
+          0% { transform: scale(1); }
+          14% { transform: scale(1.3); }
+          28% { transform: scale(1); }
+          42% { transform: scale(1.3); }
+          70% { transform: scale(1); }
+        }
         .p { position:absolute; width:10px; height:10px; background:#ffccd5; border-radius:12px 2px; animation: drift 10s linear infinite; pointer-events:none; }
+        .heart-glow { display: inline-block; color: #ff4d6d; animation: heartbeat 1.5s infinite ease-in-out; filter: drop-shadow(0 0 8px rgba(255, 77, 109, 0.6)); margin-left: 10px; font-style: normal; }
+        .reunion-text { background: linear-gradient(to bottom, #1b4332, #2d6a4f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Playfair Display', serif; font-weight: 700; font-style: italic; line-height: 1.2; }
       `}</style>
       
       <div style={s.texture} />
       <Petals />
-      {stage === 3 && <div style={{position:'absolute', inset:0, background:'rgba(255,255,255,0.1)'}} />}
       
       <div style={s.headerSection}>
         <div style={s.storyCard}><p style={s.storyText}>{memories[stage]}</p></div>
@@ -54,7 +87,7 @@ const App = () => {
       <div style={s.meadowSection}>
         <div style={{...s.flowerWrapper, transform: `scale(${0.7 + stage * 0.15})`}}>
           {stage === 0 && <div style={s.seed} />}
-          {stage > 0 && <div style={{...s.stem, height: `${stage * 35}px` }} />}
+          {stage > 0 && <div style={{...s.stem, height: `${stage * 25}px` }} />}
           {stage >= 1 && <div style={s.leafLeft} />}
           {stage >= 2 && <div style={s.leafRight} />}
           {stage === 3 && (
@@ -68,9 +101,9 @@ const App = () => {
         </div>
         
         {stage < 3 && (
-          <div style={s.sunDraggable} draggable onDragEnd={() => setStage(stage + 1)}>
+          <div style={{...s.sunDraggable, animation: 'pulse 2s infinite ease-in-out'}} onClick={() => setStage(stage + 1)}>
             <div style={s.sun}>☀️</div>
-            <p style={s.sunHint}>Drag to nourish</p>
+            <p style={s.sunHint}>Tap the sun to grow</p>
           </div>
         )}
       </div>
@@ -78,10 +111,21 @@ const App = () => {
       <div style={s.footerSection}>
         {stage === 3 && (
           <div style={s.finalMemoryCard}>
-             <div style={s.posterContainer}>
-               <img src={YOUR_IMAGE_LINK} alt="Our Future" style={s.ghibliPhoto} />
+             <div ref={postcardRef} style={s.postcardBox}>
+                <div style={s.posterContainer}>
+                    {/* FIXED: Using div with backgroundImage for better capture compatibility */}
+                    <div style={{...s.ghibliPhoto, backgroundImage: `url(${YOUR_IMAGE_LINK})` }} />
+                </div>
+                <h2 style={s.reunion}>
+                    <span className="reunion-text">Home is with you, {herName}</span>
+                    <span className="heart-glow">♥</span>
+                </h2>
              </div>
-             <h2 style={s.reunion}>Home is with you, {herName} <span style={s.heartBeside}>♥</span></h2>
+
+             <div style={s.btnGroup}>
+                <button onClick={downloadPostcard} style={s.downloadBtn}>Save Postcard 💌</button>
+                <button onClick={handleRestart} style={s.restartBtn}>Visit Meadow</button>
+             </div>
           </div>
         )}
       </div>
@@ -91,40 +135,43 @@ const App = () => {
 
 const Petals = () => (
   <div style={s.petalsWrap}>
-    {[...Array(15)].map((_, i) => (
-      <div key={i} className="p" style={{left: `${Math.random() * 100}%`, animationDelay: `${i * 0.7}s` }} />
+    {[...Array(12)].map((_, i) => (
+      <div key={i} className="p" style={{left: `${Math.random() * 100}%`, animationDelay: `${i * 0.8}s` }} />
     ))}
   </div>
 );
 
 const s = {
-  ghibliBg: { height: '100vh', background: 'linear-gradient(to bottom, #dcebe3 0%, #f9f7e8 50%, #eef2d8 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' },
+  ghibliBg: { height: '100vh', width: '100vw', background: 'linear-gradient(to bottom, #dcebe3 0%, #f9f7e8 50%, #eef2d8 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'fixed' },
   texture: { position: 'absolute', inset: 0, backgroundImage: 'url("https://www.transparenttextures.com/patterns/paper-fibers.png")', opacity: 0.4, pointerEvents: 'none', zIndex: 1 },
-  headerSection: { height: '20vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px', zIndex: 10 },
-  meadowSection: { height: '30vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  footerSection: { height: '50vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 10, padding: '0 10px' },
-  storyCard: { padding: '12px 20px', background: 'rgba(255, 255, 255, 0.45)', border: '1px solid rgba(255, 255, 255, 0.6)', borderRadius: '20px', backdropFilter: 'blur(8px)', textAlign: 'center' },
-  storyText: { fontSize: '1.2rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: '700', margin: 0 },
-  flowerWrapper: { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 1s ease-in-out', zIndex: 20 },
-  seed: { width: '22px', height: '16px', background: '#5d4037', borderRadius: '50% 50% 40% 40%' },
-  stem: { width: '5px', background: '#386641', borderRadius: '3px' },
-  leafLeft: { position: 'absolute', bottom: '18px', left: '-18px', width: '22px', height: '12px', background: '#6a994e', borderRadius: '20px 0 20px 0', transform: 'rotate(-25deg)' },
-  leafRight: { position: 'absolute', bottom: '32px', right: '-18px', width: '22px', height: '12px', background: '#6a994e', borderRadius: '0 20px 0 20px', transform: 'rotate(25deg)' },
-  bloomContainer: { position: 'absolute', top: '-30px', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pop 0.8s forwards' },
-  petal: { position: 'absolute', width: '42px', height: '62px', background: 'radial-gradient(circle at center, #fff 0%, #ffb7ce 70%, #f7a1c4 100%)', borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%' },
-  flowerCenter: { position: 'absolute', width: '18px', height: '18px', background: '#fee440', borderRadius: '50%', border: '2px solid #fff' },
-  sunDraggable: { position: 'absolute', top: '-10px', cursor: 'grab', textAlign: 'center', zIndex: 20 },
-  sun: { fontSize: '3rem' },
-  sunHint: { fontSize: '0.65rem', color: '#386641', fontWeight: '700', marginTop: '5px' },
-  finalMemoryCard: { padding: '25px 15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s ease-out forwards', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', width: '95%', maxWidth: '400px' },
-  posterContainer: { position: 'relative', maxWidth: '200px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white' },
-  ghibliPhoto: { width: '100%', height: 'auto' },
-  reunion: { fontSize: '1.6rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic' },
-  heartBeside: { fontSize: '2rem', color: '#ff758f', display: 'inline-block' },
-  content: { marginTop: '35vh', textAlign: 'center', zIndex: 10 },
-  title: { fontSize: '3rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic' },
-  startBtn: { marginTop: '20px', padding: '14px 45px', borderRadius: '50px', border: 'none', cursor: 'pointer', background: '#386641', color: 'white' },
-  petalsWrap: { position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }
+  headerSection: { height: '15vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 20px', zIndex: 10 },
+  meadowSection: { height: '30vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: '20px', position: 'relative' },
+  footerSection: { height: '55vh', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, padding: '0 10px' },
+  storyCard: { padding: '12px 20px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: '25px', backdropFilter: 'blur(5px)', textAlign: 'center', width: '85%' },
+  storyText: { fontSize: '1rem', color: '#1b4332', fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontWeight: '700', margin: 0, lineHeight: '1.4' },
+  flowerWrapper: { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', transition: 'all 0.8s ease-out' },
+  seed: { width: '20px', height: '14px', background: '#5d4037', borderRadius: '50%' },
+  stem: { width: '6px', background: '#386641', borderRadius: '4px' },
+  leafLeft: { position: 'absolute', bottom: '15px', left: '-15px', width: '20px', height: '10px', background: '#6a994e', borderRadius: '20px 0', transform: 'rotate(-20deg)' },
+  leafRight: { position: 'absolute', bottom: '25px', right: '-15px', width: '20px', height: '10px', background: '#6a994e', borderRadius: '0 20px', transform: 'rotate(20deg)' },
+  bloomContainer: { position: 'absolute', top: '-25px', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pop 0.6s forwards' },
+  petal: { position: 'absolute', width: '35px', height: '55px', background: 'radial-gradient(circle, #fff, #ffb7ce)', borderRadius: '50% 50% 50% 50% / 60% 60% 40% 40%', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' },
+  flowerCenter: { position: 'absolute', width: '15px', height: '15px', background: '#fee440', borderRadius: '50%', border: '2px solid #fff' },
+  sunDraggable: { position: 'absolute', top: '-20px', textAlign: 'center', cursor: 'pointer', zIndex: 30, WebkitTapHighlightColor: 'transparent' },
+  sun: { fontSize: '3rem', filter: 'drop-shadow(0 0 10px #f9dc5c)' },
+  sunHint: { fontSize: '0.6rem', color: '#386641', fontWeight: '800', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '1px' },
+  finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '350px', width: '90%' },
+  postcardBox: { background: '#f9f9f2', padding: '20px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
+  posterContainer: { width: '160px', height: '240px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff' },
+  ghibliPhoto: { width: '100%', height: '100%', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
+  reunion: { fontSize: '1.3rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
+  btnGroup: { display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '15px' },
+  downloadBtn: { padding: '8px 16px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' },
+  restartBtn: { padding: '8px 16px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' },
+  content: { marginTop: '40vh', textAlign: 'center' },
+  title: { fontSize: '2.5rem', color: '#1b4332', fontFamily: "'Playfair Display', serif" },
+  startBtn: { padding: '12px 45px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer' },
+  petalsWrap: { position: 'absolute', inset: 0, pointerEvents: 'none' }
 };
 
 export default App;
