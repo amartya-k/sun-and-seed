@@ -1,28 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { toBlob } from 'html-to-image';
 
 const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
-  const postcardRef = useRef(null);
-  const [imgData, setImgData] = useState(null);
+  const canvasRef = useRef(null);
+  const [imgElement, setImgElement] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const herName = "Sayantika"; 
+  const herName = "Sayantika";
 
+  // Pre-load the image as an actual HTMLImageElement
   useEffect(() => {
-    const loadImage = async () => {
-      try {
-        const response = await fetch("/us.png");
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => setImgData(reader.result);
-        reader.readAsDataURL(blob);
-      } catch (e) {
-        console.error("Image failed to pre-load", e);
-      }
-    };
-    loadImage();
+    const img = new Image();
+    // crossOrigin must be set BEFORE src on iOS
+    img.crossOrigin = "anonymous";
+    img.onload = () => setImgElement(img);
+    img.onerror = (e) => console.error("Image failed to load", e);
+    img.src = "/us.png";
   }, []);
 
   const memories = [
@@ -35,31 +29,128 @@ const App = () => {
   const handleStart = () => setGameStarted(true);
   const handleRestart = () => setStage(0);
 
-  // FIXED: Mobile-optimized download using Blobs and lower Pixel Ratio
-  const downloadPostcard = async () => {
-    if (postcardRef.current === null || !imgData || isDownloading) return;
-    
-    setIsDownloading(true);
-    try {
-      // We use toBlob because it's significantly more stable on iOS Chrome/Safari
-      const blob = await toBlob(postcardRef.current, {
-        pixelRatio: 2, // 3 is too high for mobile memory limits
-        backgroundColor: '#f9f9f2',
-        cacheBust: false,
-      });
+  // Draw the postcard directly onto a <canvas> — no html-to-image at all
+  const drawPostcard = (canvas) => {
+    if (!canvas || !imgElement) return;
 
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = `Postcard_for_${herName}.png`;
-      link.href = url;
-      link.click();
-      
-      // Cleanup
-      window.URL.revokeObjectURL(url);
+    const W = 400;
+    const H = 560;
+    canvas.width = W;
+    canvas.height = H;
+
+    const ctx = canvas.getContext('2d');
+
+    // Background
+    ctx.fillStyle = '#f9f9f2';
+    ctx.fillRect(0, 0, W, H);
+
+    // Decorative border
+    ctx.strokeStyle = '#d4e6c3';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, 10, W - 20, H - 20);
+
+    // Photo dimensions
+    const photoX = W / 2 - 110;
+    const photoY = 40;
+    const photoW = 220;
+    const photoH = 320;
+    const radius = 16;
+
+    // Clip to rounded rect for the photo
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(photoX + radius, photoY);
+    ctx.lineTo(photoX + photoW - radius, photoY);
+    ctx.quadraticCurveTo(photoX + photoW, photoY, photoX + photoW, photoY + radius);
+    ctx.lineTo(photoX + photoW, photoY + photoH - radius);
+    ctx.quadraticCurveTo(photoX + photoW, photoY + photoH, photoX + photoW - radius, photoY + photoH);
+    ctx.lineTo(photoX + radius, photoY + photoH);
+    ctx.quadraticCurveTo(photoX, photoY + photoH, photoX, photoY + photoH - radius);
+    ctx.lineTo(photoX, photoY + radius);
+    ctx.quadraticCurveTo(photoX, photoY, photoX + radius, photoY);
+    ctx.closePath();
+    ctx.clip();
+
+    // Cover-fit the image inside the photo box
+    const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight;
+    const boxAspect = photoW / photoH;
+    let sx = 0, sy = 0, sw = imgElement.naturalWidth, sh = imgElement.naturalHeight;
+    if (imgAspect > boxAspect) {
+      sw = imgElement.naturalHeight * boxAspect;
+      sx = (imgElement.naturalWidth - sw) / 2;
+    } else {
+      sh = imgElement.naturalWidth / boxAspect;
+      sy = (imgElement.naturalHeight - sh) / 2;
+    }
+    ctx.drawImage(imgElement, sx, sy, sw, sh, photoX, photoY, photoW, photoH);
+    ctx.restore();
+
+    // Photo white border + shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(photoX + radius, photoY);
+    ctx.lineTo(photoX + photoW - radius, photoY);
+    ctx.quadraticCurveTo(photoX + photoW, photoY, photoX + photoW, photoY + radius);
+    ctx.lineTo(photoX + photoW, photoY + photoH - radius);
+    ctx.quadraticCurveTo(photoX + photoW, photoY + photoH, photoX + photoW - radius, photoY + photoH);
+    ctx.lineTo(photoX + radius, photoY + photoH);
+    ctx.quadraticCurveTo(photoX, photoY + photoH, photoX, photoY + photoH - radius);
+    ctx.lineTo(photoX, photoY + radius);
+    ctx.quadraticCurveTo(photoX, photoY, photoX + radius, photoY);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+
+    // Flower emoji
+    ctx.font = '32px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🌸', W / 2, photoY + photoH + 52);
+
+    // Main text
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#1b4332';
+    ctx.font = 'italic bold 22px Georgia, serif';
+    ctx.fillText(`Home is with you,`, W / 2, photoY + photoH + 90);
+    ctx.fillText(`${herName} \u2665`, W / 2, photoY + photoH + 120);
+
+    // Footer text
+    ctx.fillStyle = '#6a994e';
+    ctx.font = '13px Georgia, serif';
+    ctx.fillText('~ always & forever ~', W / 2, H - 30);
+  };
+
+  const downloadPostcard = async () => {
+    if (!imgElement || isDownloading) return;
+    setIsDownloading(true);
+
+    try {
+      const canvas = document.createElement('canvas');
+      drawPostcard(canvas);
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          alert("Couldn't generate postcard. Please take a screenshot!");
+          setIsDownloading(false);
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = `Postcard_for_${herName}.png`;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setIsDownloading(false);
+      }, 'image/png');
     } catch (err) {
       console.error('Download failed', err);
-      alert("Please try again or take a screenshot!"); 
-    } finally {
+      alert("Please take a screenshot instead!");
       setIsDownloading(false);
     }
   };
@@ -88,10 +179,10 @@ const App = () => {
         .heart-glow { display: inline-block; color: #ff4d6d; margin-left: 8px; font-style: normal; }
         .reunion-text { background: linear-gradient(to bottom, #1b4332, #2d6a4f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Playfair Display', serif; font-weight: 700; font-style: italic; line-height: 1.2; }
       `}</style>
-      
+
       <div style={s.texture} />
       <Petals />
-      
+
       <div style={s.headerSection}>
         <div style={s.storyCard}><p style={s.storyText}>{memories[stage]}</p></div>
       </div>
@@ -99,7 +190,7 @@ const App = () => {
       <div style={s.meadowSection}>
         <div style={{...s.flowerWrapper, transform: `scale(${0.7 + stage * 0.15})`}}>
           {stage === 0 && <div style={s.seed} />}
-          {stage > 0 && <div style={{...s.stem, height: `${stage * 25}px` }} />}
+          {stage > 0 && <div style={{...s.stem, height: `${stage * 25}px`}} />}
           {stage >= 1 && <div style={s.leafLeft} />}
           {stage >= 2 && <div style={s.leafRight} />}
           {stage === 3 && (
@@ -111,7 +202,7 @@ const App = () => {
             </div>
           )}
         </div>
-        
+
         {stage < 3 && (
           <div style={s.sunDraggable} onClick={() => setStage(stage + 1)}>
             <div style={s.sun}>☀️</div>
@@ -123,26 +214,25 @@ const App = () => {
       <div style={s.footerSection}>
         {stage === 3 && (
           <div style={s.finalMemoryCard}>
-             <div ref={postcardRef} style={s.postcardBox}>
-                <div style={s.posterContainer}>
-                    {imgData ? (
-                      <div style={{...s.ghibliPhoto, backgroundImage: `url(${imgData})` }} />
-                    ) : (
-                      <div style={s.loadingPlaceholder}>Blooming...</div>
-                    )}
-                </div>
-                <h2 style={s.reunion}>
-                    <span className="reunion-text">Home is with you, {herName}</span>
-                    <span className="heart-glow">♥</span>
-                </h2>
-             </div>
+            <div style={s.postcardBox}>
+              <div style={s.posterContainer}>
+                {imgElement ? (
+                  <canvas
+                    ref={(el) => { canvasRef.current = el; if (el) drawPostcard(el); }}
+                    style={{ width: '100%', height: '100%', borderRadius: '12px' }}
+                  />
+                ) : (
+                  <div style={s.loadingPlaceholder}>Blooming...</div>
+                )}
+              </div>
+            </div>
 
-             <div style={s.btnGroup}>
-                <button onClick={downloadPostcard} style={s.downloadBtn} disabled={isDownloading}>
-                  {isDownloading ? "Saving..." : "Save Postcard 💌"}
-                </button>
-                <button onClick={handleRestart} style={s.restartBtn}>Restart</button>
-             </div>
+            <div style={s.btnGroup}>
+              <button onClick={downloadPostcard} style={s.downloadBtn} disabled={isDownloading || !imgElement}>
+                {isDownloading ? "Saving..." : "Save Postcard 💌"}
+              </button>
+              <button onClick={handleRestart} style={s.restartBtn}>Restart</button>
+            </div>
           </div>
         )}
       </div>
@@ -153,7 +243,7 @@ const App = () => {
 const Petals = () => (
   <div style={s.petalsWrap}>
     {[...Array(12)].map((_, i) => (
-      <div key={i} className="p" style={{left: `${Math.random() * 100}%`, animationDelay: `${i * 0.8}s` }} />
+      <div key={i} className="p" style={{left: `${Math.random() * 100}%`, animationDelay: `${i * 0.8}s`}} />
     ))}
   </div>
 );
@@ -180,7 +270,6 @@ const s = {
   finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '340px', width: '95%' },
   postcardBox: { background: '#f9f9f2', padding: '15px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
   posterContainer: { width: '150px', height: '220px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  ghibliPhoto: { width: '100%', height: '100%', backgroundSize: 'cover', backgroundPosition: 'center', display: 'block' },
   loadingPlaceholder: { color: '#386641', fontSize: '0.8rem', fontStyle: 'italic' },
   reunion: { fontSize: '1.1rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
   btnGroup: { display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' },
