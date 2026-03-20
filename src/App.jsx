@@ -33,8 +33,8 @@ const App = () => {
   const drawPostcard = (canvas) => {
     if (!canvas || !imgElement) return;
 
-    const W = 400;
-    const H = 560;
+    const W = 560;
+    const H = 760;
     canvas.width = W;
     canvas.height = H;
 
@@ -50,10 +50,10 @@ const App = () => {
     ctx.strokeRect(10, 10, W - 20, H - 20);
 
     // Photo dimensions
-    const photoX = W / 2 - 110;
+    const photoX = W / 2 - 160;
     const photoY = 40;
-    const photoW = 220;
-    const photoH = 320;
+    const photoW = 320;
+    const photoH = 440;
     const radius = 16;
 
     // Clip to rounded rect for the photo
@@ -269,7 +269,7 @@ const s = {
   sunHint: { fontSize: '0.55rem', color: '#386641', fontWeight: '800', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '1px' },
   finalMemoryCard: { padding: '15px', background: 'rgba(255, 255, 255, 0.4)', borderRadius: '25px', backdropFilter: 'blur(10px)', textAlign: 'center', animation: 'pop 1s forwards', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', maxWidth: '340px', width: '95%' },
   postcardBox: { background: '#f9f9f2', padding: '15px', borderRadius: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  posterContainer: { width: '150px', height: '220px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  posterContainer: { width: '240px', height: '340px', borderRadius: '15px', overflow: 'hidden', border: '4px solid white', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', margin: '0 auto', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   loadingPlaceholder: { color: '#386641', fontSize: '0.8rem', fontStyle: 'italic' },
   reunion: { fontSize: '1.1rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
   btnGroup: { display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' },
