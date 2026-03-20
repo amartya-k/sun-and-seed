@@ -1,26 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { toPng } from 'html-to-image';
+import { toBlob } from 'html-to-image';
 
 const App = () => {
   const [stage, setStage] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const postcardRef = useRef(null);
-  
-  // This will hold the "ready-to-use" version of your photo
   const [imgData, setImgData] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const herName = "Sayantika"; 
 
-  // 1. PRE-LOAD: This fixes the "delay" at the end and the "blank" download
   useEffect(() => {
     const loadImage = async () => {
       try {
         const response = await fetch("/us.png");
         const blob = await response.blob();
         const reader = new FileReader();
-        reader.onloadend = () => {
-          setImgData(reader.result); // Image is now stored as a local string
-        };
+        reader.onloadend = () => setImgData(reader.result);
         reader.readAsDataURL(blob);
       } catch (e) {
         console.error("Image failed to pre-load", e);
@@ -39,24 +35,32 @@ const App = () => {
   const handleStart = () => setGameStarted(true);
   const handleRestart = () => setStage(0);
 
-  // 2. DOWNLOAD: Optimized for mobile/Safari
+  // FIXED: Mobile-optimized download using Blobs and lower Pixel Ratio
   const downloadPostcard = async () => {
-    if (postcardRef.current === null || !imgData) return;
+    if (postcardRef.current === null || !imgData || isDownloading) return;
     
+    setIsDownloading(true);
     try {
-      // Small "wait" to ensure Safari has painted the pixels
-      const dataUrl = await toPng(postcardRef.current, {
-        pixelRatio: 3,
+      // We use toBlob because it's significantly more stable on iOS Chrome/Safari
+      const blob = await toBlob(postcardRef.current, {
+        pixelRatio: 2, // 3 is too high for mobile memory limits
         backgroundColor: '#f9f9f2',
-        cacheBust: false, // Don't bust cache since we are using imgData string
+        cacheBust: false,
       });
 
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.download = `Postcard_for_${herName}.png`;
-      link.href = dataUrl;
+      link.href = url;
       link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Download failed', err);
+      alert("Please try again or take a screenshot!"); 
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -81,7 +85,7 @@ const App = () => {
         @keyframes pop { 0% { transform: scale(0); opacity:0; } 100% { transform: scale(1); opacity:1; } }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
         .p { position:absolute; width:10px; height:10px; background:#ffccd5; border-radius:12px 2px; animation: drift 10s linear infinite; pointer-events:none; }
-        .heart-glow { display: inline-block; color: #ff4d6d; filter: drop-shadow(0 0 8px rgba(255, 77, 109, 0.6)); margin-left: 8px; font-style: normal; }
+        .heart-glow { display: inline-block; color: #ff4d6d; margin-left: 8px; font-style: normal; }
         .reunion-text { background: linear-gradient(to bottom, #1b4332, #2d6a4f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: 'Playfair Display', serif; font-weight: 700; font-style: italic; line-height: 1.2; }
       `}</style>
       
@@ -121,7 +125,6 @@ const App = () => {
           <div style={s.finalMemoryCard}>
              <div ref={postcardRef} style={s.postcardBox}>
                 <div style={s.posterContainer}>
-                    {/* The image is now fed from the pre-loaded state for instant display */}
                     {imgData ? (
                       <div style={{...s.ghibliPhoto, backgroundImage: `url(${imgData})` }} />
                     ) : (
@@ -135,7 +138,9 @@ const App = () => {
              </div>
 
              <div style={s.btnGroup}>
-                <button onClick={downloadPostcard} style={s.downloadBtn}>Save Postcard 💌</button>
+                <button onClick={downloadPostcard} style={s.downloadBtn} disabled={isDownloading}>
+                  {isDownloading ? "Saving..." : "Save Postcard 💌"}
+                </button>
                 <button onClick={handleRestart} style={s.restartBtn}>Restart</button>
              </div>
           </div>
@@ -179,7 +184,7 @@ const s = {
   loadingPlaceholder: { color: '#386641', fontSize: '0.8rem', fontStyle: 'italic' },
   reunion: { fontSize: '1.1rem', marginTop: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' },
   btnGroup: { display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' },
-  downloadBtn: { padding: '12px 18px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(56, 102, 65, 0.3)' },
+  downloadBtn: { padding: '12px 18px', borderRadius: '50px', border: 'none', background: '#386641', color: 'white', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', opacity: 1 },
   restartBtn: { padding: '12px 18px', borderRadius: '50px', border: '1px solid #386641', background: 'transparent', color: '#386641', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer' },
   content: { marginTop: '40vh', textAlign: 'center', zIndex: 10 },
   title: { fontSize: '2.2rem', color: '#1b4332', fontFamily: "'Playfair Display', serif" },
